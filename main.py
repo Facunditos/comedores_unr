@@ -150,9 +150,7 @@ class Reserva:
             else:    
                 boton_reservar = self.driver.find_element(By.CSS_SELECTOR, ".swal2-confirm")
                 boton_reservar.click()
-                self.wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "swal2-container")))
-                # ticket = self.driver.find_element(by=By.CLASS_NAME,value='ticket')
-                # print('hay ticket',ticket)
+                self.wait.until(EC.staleness_of(div_swal2_container))
                 print(f'Menú reservado\n')
         except Exception as e:
             print(f"Ocurrió un error al elegir un menú: {e}.\n")
