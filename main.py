@@ -14,6 +14,7 @@ from datetime import datetime
 import csv
 import warnings
 warnings.filterwarnings(action='ignore')
+
 # Configuración del navegador
 chrome_options = Options()
 chrome_options.add_argument('--headless')
@@ -27,6 +28,11 @@ comedores_menues_path = "C:/Users/Usuario/Documents/comedores_unr/usuarios/facun
 op_menu_df = pd.read_excel(comedores_menues_path,sheet_name='opciones_menu')
 comedores_df = pd.read_excel(comedores_menues_path,sheet_name='comedores')
 
+
+# Control de habilitacion de reserva para finalizar la ejecución del script
+reservas_habilitadas = False
+hora_habilitacion = None
+
 # Clase Reserva
 class Reserva:
     url_login = 'https://comedores.unr.edu.ar/'
@@ -36,7 +42,7 @@ class Reserva:
     u_logueado = False
     # Ni en diciembre ni en enero se van a sacar turno para los meses siguientes
     meses = ['Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-    
+    habilitada = False
     
     def __init__(self,u_dni:'str',u_clave:'str',op_eledigas:pd.DataFrame):
         self.driver = webdriver.Chrome(options=chrome_options)
@@ -152,6 +158,8 @@ class Reserva:
                 boton_reservar.click()
                 self.wait.until(EC.staleness_of(div_swal2_container))
                 print(f'Menú reservado\n')
+                self.habilitada = True
+                    
         except Exception as e:
             print(f"Ocurrió un error al elegir un menú: {e}.\n")
     def buscar_menues(self):
@@ -165,6 +173,12 @@ class Reserva:
         self.cerrar_navegador() 
 
 while True:
+    # Se corroboró que no siempre se habilitan las reservas todas juntas, por lo cual, se esperan 5 horas desde que se habilita la primera para dejar de buscar menúes
+    if reservas_habilitadas is True:
+        hora_actual = datetime.now()
+        diferencia_s = (hora_actual - hora_habilitacion).total_seconds()
+        if diferencia_s > 60*60*5: # equivale a cinco horas 
+            break
     dir_usuarios = "C:/Users/Usuario/Documents/comedores_unr/usuarios"
     for usuario in os.listdir(path=dir_usuarios):
         u = usuario.split('.')[0]
@@ -179,6 +193,9 @@ while True:
         reserva = Reserva(u_dni=u_dni,u_clave=u_clave,op_eledigas=menues_elegidos_df)
         reserva.loguearse()
         reserva.buscar_menues()
+        if reserva.habilitada is True and reservas_habilitadas is False:
+            reservas_habilitadas = True
+            hora_habilitacion = datetime.now()
         now_fin = datetime.now()
         demora_s = (now_fin - now_inicio).total_seconds()
         tiempo_ejecucion_path = "C:/Users/Usuario/Documents/comedores_unr/tiempo_ejecucion.csv"
@@ -190,4 +207,4 @@ while True:
     diez_min = 60 * 10
     sleep(diez_min)        
 
-
+print('Fin de la ejecución. Transcurrieron más de 5 horas desde que se habilitó la primer reserva')
