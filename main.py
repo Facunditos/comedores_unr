@@ -12,6 +12,7 @@ import pandas as pd
 import os
 from datetime import datetime
 import csv
+import re
 import warnings
 warnings.filterwarnings(action='ignore')
 
@@ -37,6 +38,7 @@ hora_habilitacion = None
 class Reserva:
     url_login = 'https://comedores.unr.edu.ar/'
     url_reservas = 'https://comedores.unr.edu.ar/comedor-reserva/reservar'
+    url_cuenta = 'https://comedores.unr.edu.ar/comensal/mi-cuenta'
     comedor = None
     menu = None
     u_logueado = False
@@ -82,6 +84,49 @@ class Reserva:
             self.u_logueado = True
         except Exception as e:
             print(f"Ocurrió un error en el logeo: {e}.")
+    def chequear_saldo(self):
+        if not self.u_logueado: 
+            print('para revisar el saldo primero hay que loguearse\n')
+            return
+        # Abrir la página web
+        try:
+            # Revisar crédtio
+            #saldo_actual = e_col_md_3.find_element(by=By.CLASS_NAME,value='cc-saldo-actual-valor').text
+            saldo = self.driver.find_element(by=By.ID,value='saldo-cabecera-movil').text
+            saldo = re.search(r'\d.+',saldo).group(0)
+            saldo = saldo.replace('.','').replace(',','.')
+            self.saldo = float(saldo)
+        except Exception as e:
+            print(f"Ocurrió un error ingresando a la cuenta: {e}.")            
+
+    def saldo_suficiente(self,valor_menues):
+        return self.saldo>=valor_menues
+    
+    def cargar_saldo(self):
+        if self.saldo is None:
+            print('Para cargar saldo primero corresonde chequear el saldo actual')
+            return
+        self.driver.get(self.url_cuenta)
+        e_col_md_3 = self.wait.until(
+            EC.presence_of_element_located(locator=(By.CLASS_NAME,'col-md-3'))
+        )
+        boton_carga_credito = e_col_md_3.find_element(by=By.XPATH,value="//button[@data-toggle='modal']")
+        boton_carga_credito.click()
+        e_form = self.wait.until(
+            EC.visibility_of_element_located(locator=(By.XPATH,"//*/form[@data-bind='submit: cargarCredito']"))
+        )
+        e_button = e_form.find_element(by=By.XPATH,value=".//*/button[@type='submit']")
+        e_button.click()
+        self.wait.until(
+            EC.url_contains(url='mercadopago')
+        )
+        print('vamos muy bien!')
+        titulo = self.wait.until(
+            EC.visibility_of_element_located(locator=(By.TAG_NAME,'h2'))
+        )            
+        print(titulo.text)
+        return 
+        
     def ingresar_comedor(self,comedor):
         if not self.u_logueado: 
             print('para elegir un comedor primero hay que loguearse')
@@ -101,7 +146,7 @@ class Reserva:
             print('Ingreso al comedor',comedor)
             self.comedor = comedor
         except Exception as e:
-            print(f"Ocurrió un error al elegir un comedor: {e}.")
+            print(f"Ocurrió un error al elegir un comedor: {e}.\n")
 
     def cambiar_mes(self):
         # Se intenta cambiar de mes
@@ -192,6 +237,9 @@ while True:
         print(f'Hora actual: {now_inicio.hour} hs con {now_inicio.minute} minutos. Avancemos en reservar los menúes de {u} \U0001F4AA!!!\n')
         reserva = Reserva(u_dni=u_dni,u_clave=u_clave,op_eledigas=menues_elegidos_df)
         reserva.loguearse()
+        reserva.chequear_saldo()
+        if not reserva.saldo_suficiente(valor_menues=3001): reserva.cargar_saldo()
+        break
         reserva.buscar_menues()
         if reserva.habilitada is True and reservas_habilitadas is False:
             reservas_habilitadas = True
@@ -203,6 +251,7 @@ while True:
             writer = csv.writer(csv_file)
             writer.writerow((now_inicio,demora_s))
         print(f'La búsqueda de menúes demoró {demora_s} segundos\n')
+    break
     print('En diez minutos volvemos a intertarlo\n')
     diez_min = 60 * 10
     sleep(diez_min)        
