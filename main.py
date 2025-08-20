@@ -22,6 +22,14 @@ chrome_options.add_argument('--headless')
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
 chrome_options.add_argument('--disable-gpu')
+chrome_options.add_argument(
+    "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/127.0.0.0 Safari/537.36"
+)
+# Ocultar que es Selenium
+chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+chrome_options.add_experimental_option('useAutomationExtension', False)
 service = Service('/usr/bin/chromedriver')
 
 # Lectura de comedores y menúes disponibles
@@ -48,6 +56,14 @@ class Reserva:
     
     def __init__(self,u_dni:'str',u_clave:'str',op_eledigas:pd.DataFrame):
         self.driver = webdriver.Chrome(options=chrome_options)
+        # Esto corre un script antes de que cargue cualquier página
+        self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+            "source": """
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """
+        })
         self.wait = WebDriverWait(driver=self.driver, timeout=100)
         self.driver.set_page_load_timeout(400)        
         self.u_dni = str(u_dni)
@@ -118,14 +134,65 @@ class Reserva:
         e_button = e_form.find_element(by=By.XPATH,value=".//*/button[@type='submit']")
         e_button.click()
         self.wait.until(
-            EC.url_contains(url='mercadopago')
+            EC.url_contains(url='p=')
         )
-        print('vamos muy bien!')
-        titulo = self.wait.until(
-            EC.visibility_of_element_located(locator=(By.TAG_NAME,'h2'))
-        )            
-        print(titulo.text)
+        self.driver.get(self.driver.current_url)
+        print('eligiendo forma de pago')
+        e_new_card_row = self.driver.find_element(By.ID,'new_card_row')
+        e_button = e_new_card_row.find_element(By.TAG_NAME,'button')
+        e_button.click()
+        self.wait.until(
+            EC.url_contains('card-form')
+        )
+        print('completando datos de la tarjeta')
+        # c/ iframe:
+        # cardNumber 
+        # expirationDate 
+        # securityCode 
+        # s/ iframe:
+        # cardholderName 
+        # cardholderIdentificationNumber 
+        # Detecto el elemento iframe
+        e_iframe = self.driver.find_element(By.XPATH,"//iframe[@id='iframe-sf-cardNumber']")
+        # Cambio de frame y obtengo el input
+        self.driver.switch_to.frame(e_iframe)
+        e_input_num_tar = self.driver.find_element(By.XPATH,"//input[@id='cardNumber']")
+        print('etiqueta',e_input_num_tar.tag_name,'atributo id',e_input_num_tar.get_attribute('id'))
+        # retorno al frame original
+        self.driver.switch_to.default_content()
+        e_input_tit_tar_nombre = self.driver.find_element(By.ID,'cardholderName')
+        print('etiqueta',e_input_tit_tar_nombre.tag_name,'atributo id',e_input_tit_tar_nombre.get_attribute('id'))
+        # Detecto el elemento iframe
+        e_iframe = self.driver.find_element(By.XPATH,"//iframe[@id='iframe-sf-expirationDate']")
+        # Cambio de frame y obtengo el input
+        self.driver.switch_to.frame(e_iframe)
+        e_input_exp_tar = self.driver.find_element(By.XPATH,"//input[@id='expirationDate']")
+        print('etiqueta',e_input_exp_tar.tag_name,'atributo id',e_input_exp_tar.get_attribute('id'))
+        # retorno al frame original
+        self.driver.switch_to.default_content()
+        # Detecto el elemento iframe
+        e_iframe = self.driver.find_element(By.XPATH,"//iframe[@id='iframe-sf-securityCode']")
+        # Cambio de frame y obtengo el input
+        self.driver.switch_to.frame(e_iframe)
+        e_input_cod_tar = self.driver.find_element(By.XPATH,"//input[@id='securityCode']")
+        print('etiqueta',e_input_cod_tar.tag_name,'atributo id',e_input_cod_tar.get_attribute('id'))
+        # retorno al frame original
+        self.driver.switch_to.default_content()
+        e_input_tit_tar_id = self.driver.find_element(By.ID,'cardholderIdentificationNumber')
+        print('etiqueta',e_input_tit_tar_id.tag_name,'atributo id',e_input_tit_tar_id.get_attribute('id'))
+        # Completar el forumalario
+        e_input_num_tar.send_keys('hola')
+        e_input_tit_tar_nombre.send_keys('hola')
+        e_input_exp_tar.send_keys('hola')
+        e_input_cod_tar.send_keys('hola')
+        e_input_tit_tar_id.send_keys('hola')
+        # Enviar el formulario
+        e_span_continuar = self.driver.find_element(By.XPATH, "//span[contains(text(), 'Continuar')]")
+        e_button_continuar = e_span_continuar.find_element(By.XPATH,"..")
+        print(e_button_continuar.text)
         return 
+
+
         
     def ingresar_comedor(self,comedor):
         if not self.u_logueado: 
