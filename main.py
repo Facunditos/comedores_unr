@@ -15,6 +15,13 @@ import csv
 import re
 import warnings
 warnings.filterwarnings(action='ignore')
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+num_tar = os.getenv("NUMERO_TARJETA")
+print(num_tar)
+
 
 # Configuración del navegador
 chrome_options = Options()
